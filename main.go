@@ -25,7 +25,7 @@ func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 type healthHandler struct {
 }
 
-func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   now := time.Now()
   fmt.Fprintf(w, "time is %d\n", now.Unix())
 }
