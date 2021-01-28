@@ -40,7 +40,7 @@ func main() {
   }
 
   http.Handle("/count", new(countHandler))
-  http.Handle("/bealth", new(healthHandler))
+  http.Handle("/health", new(healthHandler))
 
   log.Fatal(http.ListenAndServe(":8080", nil))
 }
