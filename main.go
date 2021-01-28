@@ -16,6 +16,7 @@ type countHandler struct {
 }
 
 func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  fmt.Println("starting count")
   h.mutex.Lock()
   defer h.mutex.Unlock()
   h.n++
@@ -26,6 +27,7 @@ type healthHandler struct {
 }
 
 func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  fmt.Println("starting healh check")
   now := time.Now()
   fmt.Fprintf(w, "time is %d\n", now.Unix())
 }
@@ -38,6 +40,7 @@ func main() {
   }
 
   http.Handle("/count", new(countHandler))
+  http.Handle("/bealth", new(healthHandler))
 
   log.Fatal(http.ListenAndServe(":8080", nil))
 }
