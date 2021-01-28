@@ -7,6 +7,7 @@ import (
   "fmt"
   "strings"
   "log"
+  "time"
 )
 
 type countHandler struct {
@@ -20,6 +21,15 @@ func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   h.n++
   fmt.Fprintf(w, "count is %d\n", h.n)
 }
+
+type healthHandler struct {
+}
+
+func (h *countHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  now := time.Now()
+  fmt.Fprintf(w, "time is %d\n", now.Unix())
+}
+
 
 func main() {
   for _, e := range os.Environ() {
