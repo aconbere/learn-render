@@ -101,7 +101,7 @@ func ScanPort(p *Port, timeout time.Duration, test bool) error {
     p.State = PortOpen
     if test {
       log.Print("TESTING")
-      fmt.Fprintf(conn, "GET / HTTP/1.1\r\n\r\nHOST:%s", os.Getenv("RENDER_INTERNAL_HOSTNAME"))
+      fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHOST:%s\r\n\r\n", os.Getenv("RENDER_INTERNAL_HOSTNAME"))
 
       if err != nil {
         log.Print("Failed to write to conn: %s", p.String())
