@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -eux
+
+source .env
+
+curl $SCHEME://$HOST:$PORT/files -X GET --get -d "root=$1"

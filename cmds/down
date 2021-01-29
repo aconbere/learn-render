@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -eus
+
+source .env
+
+curl $SCHEME://$HOST:$PORT/health -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "state=down"
