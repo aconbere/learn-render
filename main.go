@@ -5,7 +5,6 @@ import (
   "sync"
   "os"
   "fmt"
-  "strings"
   "log"
   "time"
   "path/filepath"
@@ -21,11 +20,15 @@ const (
 type Service struct {
   State ServerState
   RequestCount int
+  Username string
+  Password string
 }
 
-func NewService() Service {
+func NewService(username string, password string) Service {
   return Service {
     State: Up,
+    Username: username,
+    Password: password,
   }
 }
 
@@ -50,10 +53,27 @@ func (h *CountHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   fmt.Fprintf(w, "count is %d\n", h.Service.RequestCount)
 }
 
-type ListFileSystemHandler struct { }
+type ListFileSystemHandler struct {
+  Service *Service
+}
+
+func NewListFileSystemHandler(service *Service) ListFileSystemHandler {
+  return ListFileSystemHandler {
+    Service: service,
+  }
+}
 
 func (h *ListFileSystemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   var files []string
+
+  username, password, ok := r.BasicAuth()
+
+  if !ok || username != h.Service.Username || password != h.Service.Password {
+      w.WriteHeader(http.StatusUnauthorized)
+      fmt.Fprint(w, "Invalid Username or Password")
+      return
+  }
+
 
   err := r.ParseForm()
   if err != nil {
@@ -102,12 +122,13 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   case "GET":
     switch h.Service.State {
       case Up:
-        now := time.Now()
         w.WriteHeader(http.StatusOK)
+        now := time.Now()
         fmt.Fprintf(w, "Service is up\ntime is %d\n", now.Unix())
       case Down:
         w.WriteHeader(http.StatusServiceUnavailable)
-        fmt.Fprintf(w, "Service is down")
+        now := time.Now()
+        fmt.Fprintf(w, "Service is down\ntime is %d\n", now.Unix())
     }
   case "POST":
     err := r.ParseForm()
@@ -157,12 +178,22 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 
 func main() {
-  for _, e := range os.Environ() {
-    pair := strings.SplitN(e, "=", 2)
-    fmt.Println(pair[0], pair[1])
+  // for _, e := range os.Environ() {
+  //   pair := strings.SplitN(e, "=", 2)
+  //   fmt.Println(pair[0], pair[1])
+  // }
+
+  username := os.Getenv("USERNAME")
+  if username == "" {
+    log.Fatal("username unset, must have some value")
   }
 
-  service := NewService()
+  password := os.Getenv("PASSWORD")
+  if password == "" {
+    log.Fatal("username unset, must have some value")
+  }
+
+  service := NewService(username, password)
   countHandler := NewCountHandler(&service)
   healthHandler := NewHealthHandler(&service)
 
@@ -170,5 +201,6 @@ func main() {
   http.Handle("/health", &healthHandler)
   http.Handle("/files", new(ListFileSystemHandler))
 
+  log.Print("Starting Server on :8080\n")
   log.Fatal(http.ListenAndServe(":8080", nil))
 }

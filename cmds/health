@@ -4,6 +4,4 @@ set -eu
 
 curl $SCHEME://$HOST:$PORT/health \
   -u $USERNAME:$PASSWORD \
-  -X POST \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "state=down"
+  -X GET
