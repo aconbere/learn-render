@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -eu
+
+curl $SCHEME://$HOST:$PORT/scan \
+  -u $USERNAME:$PASSWORD \
+  -X GET \
+  --get \
+  -d "ip=$1"
+

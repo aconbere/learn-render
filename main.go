@@ -2,13 +2,104 @@ package main
 
 import (
   "net/http"
-  "sync"
   "os"
+  "net"
+  "strings"
   "fmt"
   "log"
   "time"
+  "sync"
   "path/filepath"
 )
+
+type PortState int
+
+func (p PortState) String() string {
+  switch p {
+  case 0:
+    return "PortOpen"
+  case 1:
+    return "PortUnchecked"
+  case 2:
+    return "PortClosed"
+  case 3:
+    return "PortTimeout"
+  case 4:
+    return "PortError"
+  default:
+    return "????"
+  }
+}
+
+const (
+  PortOpen PortState = iota
+  PortUnchecked
+  PortClosed
+  PortTimeout
+  PortErrorOpenFiles
+)
+
+type PortScanner struct {
+  Ip string
+  Ports []Port
+}
+
+type Port struct {
+  Ip string
+  Port int
+  State PortState
+}
+
+func (p *Port) String() string {
+  return fmt.Sprintf("%s:%d %s", p.Ip, p.Port, p.State.String())
+}
+
+func (ps *PortScanner) Start(start, end int, timeout time.Duration) {
+  var wg sync.WaitGroup
+
+  var ports = make(chan Port, 1)
+
+  for i := start; i <= end; i++ {
+    wg.Add(1)
+
+    ports<- Port {
+      Ip: ps.Ip,
+      Port: i,
+      State: PortUnchecked,
+    }
+
+    go func() {
+      defer wg.Done()
+      port := <-ports
+
+      _ = ScanPort(&port, timeout)
+      if port.State == PortOpen {
+        ps.Ports = append(ps.Ports, port)
+      }
+    }()
+  }
+
+  wg.Wait()
+}
+
+func ScanPort(p *Port, timeout time.Duration) error {
+    target := fmt.Sprintf("%s:%d", p.Ip, p.Port)
+    conn, err := net.DialTimeout("tcp", target, timeout)
+
+    if err != nil {
+        if strings.Contains(err.Error(), "too many open files") {
+          p.State = PortErrorOpenFiles
+          return err
+        }
+
+        p.State = PortClosed
+        return err
+    }
+
+    p.State = PortOpen
+    conn.Close()
+    return nil
+}
 
 type ServerState int
 
@@ -29,6 +120,43 @@ func NewService(username string, password string) Service {
     State: Up,
     Username: username,
     Password: password,
+  }
+}
+
+
+type ScanHandler struct {
+  Service *Service
+  mutex sync.Mutex
+}
+
+func NewScanHandler(service *Service) ScanHandler {
+  return ScanHandler {
+    Service: service,
+  }
+}
+
+func (h *ScanHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+  ip := r.FormValue("ip")
+  if ip == "" {
+    w.WriteHeader(http.StatusBadRequest)
+    fmt.Fprintf(w, "no valid ip provided\n")
+    return
+  }
+
+  log.Print("starting network scan\n")
+  h.mutex.Lock()
+  defer h.mutex.Unlock()
+
+  ps := &PortScanner {
+    Ip: ip,
+  }
+
+  ps.Start(1, 65535, 500*time.Millisecond)
+
+
+  w.WriteHeader(http.StatusOK)
+  for _, p := range ps.Ports {
+    fmt.Fprintf(w, "%s:%d %s\n", p.Ip, p.Port, p.State.String())
   }
 }
 
@@ -190,16 +318,18 @@ func main() {
 
   password := os.Getenv("PASSWORD")
   if password == "" {
-    log.Fatal("username unset, must have some value")
+    log.Fatal("password unset, must have some value")
   }
 
   service := NewService(username, password)
   countHandler := NewCountHandler(&service)
   healthHandler := NewHealthHandler(&service)
+  scanHandler := NewScanHandler(&service)
 
   http.Handle("/count", &countHandler)
   http.Handle("/health", &healthHandler)
   http.Handle("/files", new(ListFileSystemHandler))
+  http.Handle("/scan", &scanHandler)
 
   log.Print("Starting Server on :8080\n")
   log.Fatal(http.ListenAndServe(":8080", nil))
