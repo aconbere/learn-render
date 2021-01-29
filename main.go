@@ -2,6 +2,7 @@ package main
 
 import (
   "net/http"
+  "io"
   "os"
   "net"
   "strings"
@@ -72,7 +73,7 @@ func (ps *PortScanner) Start(start, end int, timeout time.Duration) {
       defer wg.Done()
       port := <-ports
 
-      _ = ScanPort(&port, timeout)
+      _ = ScanPort(&port, timeout, true)
       if port.State == PortOpen {
         ps.Ports = append(ps.Ports, port)
       }
@@ -82,7 +83,7 @@ func (ps *PortScanner) Start(start, end int, timeout time.Duration) {
   wg.Wait()
 }
 
-func ScanPort(p *Port, timeout time.Duration) error {
+func ScanPort(p *Port, timeout time.Duration, test bool) error {
     target := fmt.Sprintf("%s:%d", p.Ip, p.Port)
     conn, err := net.DialTimeout("tcp", target, timeout)
 
@@ -95,9 +96,31 @@ func ScanPort(p *Port, timeout time.Duration) error {
         p.State = PortClosed
         return err
     }
+    defer conn.Close()
 
     p.State = PortOpen
-    conn.Close()
+    if test {
+      log.Print("TESTING")
+      fmt.Fprintf(conn, "GET / HTTP/1.1\r\n\r\n")
+
+      if err != nil {
+        log.Print("Failed to write to conn: %s", p.String())
+        return err
+      }
+
+      buff := make([]byte, 256)
+      _, err := conn.Read(buff)
+      if err != nil {
+        if err != io.EOF {
+          log.Print("Failed to read back from conn: %s", p.String())
+          return err
+        }
+      }
+
+      log.Printf("Read back: %s\n%s\n", p.String(), string(buff))
+
+    }
+
     return nil
 }
 
